@@ -1,0 +1,188 @@
+---
+title: "Semesterarbeit 3"
+author: "Cristian Ruiz"
+date: "2023-11-19"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Semesterarbeit Teil 3
+
+## Aufgabe 1
+
+### Laden der Bibliotheken, Einlesen der Datei und Übersicht verschaffen.
+
+```{r}
+library(readr)  # Bibliothek zum effizienten Einlesen von Daten
+library(MASS)   # Bibliothek für fortgeschrittene statistische Analysen
+
+data <- read.csv2("/Users/cristianruiz/Desktop/CAS/R/Semesterarbeit 3/Ausfälle.csv")
+
+head (data)
+View (data)
+
+```
+
+
+### a) Total der Ausfälle pro Jahr
+
+Um das Gesamtvolumen der Ausfälle pro Jahr zu berechnen, wird eine neue Variable erstellt, die die Summe der Ausfälle pro Jahr enthält.
+
+```{r}
+data$summe_jahr <- rowSums(data[, 3:13])
+data$summe_jahr <- as.integer(data$summe_jahr)
+```
+
+### b) Anpassung der Ausfälle pro Jahr an eine geeignete Verteilung
+
+Für die Anpassung der Anzahl der Ausfälle pro Jahr an eine Verteilung wird die negative Binomialverteilung verwendet, da es sich um Disrkete Zahlen handelt und die Anzahl der Misserfolge in das Modell einbezogen werden kann. Die Wahrscheinlichkeit, dass sich pro Jahr zwischen 15 und 20 Ausfälle ereignen, beträgt 0.81%.
+
+```{r}
+
+prob_15_to_20 <- pnbinom(20, size = 1, mu = coef(fit)) - pnbinom(14, size = 1, mu = coef(fit))
+
+print(prob_15_to_20)
+```
+
+### c) Mittlere Anzahl Jahre zwischen zwei Jahren mit mindestens 25 Ausfällen
+
+Um die mittlere Anzahl Jahre zwischen zwei Jahren mit mindestens 25 Ausfällen zu bestimmen, haben wir Simulationen mit einer Poisson-Verteilung durchgeführt. Die berechnete mittlere Anzahl beträgt:
+
+```{r}
+jahre_zwischen_25_Ausfällen <- rnbinom(10000, size = 1, mu = coef(fit))
+mean_jahre_zwischen_25_Ausfällen <- mean(jahre_zwischen_25_Ausfällen)
+
+mean_jahre_zwischen_25_Ausfällen
+```
+ 
+
+## Aufgabe 2
+
+### Einlesen der Datei und Übersicht verschaffen.
+
+Ich habe mich für den zur Verfügung gestellten Datensatz entschieden.
+
+```{r}
+load("/Users/cristianruiz/Desktop/CAS/R/Semesterarbeit 3/zeitdauerGesamtheit.RData")
+
+str(zeitdauerGesamtheit)
+head(zeitdauerGesamtheit)
+View(zeitdauerGesamtheit)
+```
+
+
+### a)
+
+Als erstes plotte ich die Daten als Histogramm in einer 2X2 Matrix Anordnung.
+
+```{r}
+
+par(mfrow=c(2, 2))  # 2x2 Matrix für die Anordnung der Plots
+for (spalte in colnames(zeitdauerGesamtheit)) {
+  hist(zeitdauerGesamtheit[, spalte], main=spalte, xlab=spalte, col="lightblue", border="black")
+}
+
+```
+
+### b)
+
+Da wie im Histogramm ersichtilich, die Daten eine klare positive Verschiebung von links nach rechts aufweisen handelt es sich um eine Exponentialverteilung. Nun wird der charakteristischen Parameter, also der lambda-Wert, der Variable "zeitdauer" berechnet.
+
+```{r}
+
+lambda <- 1/mean(zeitdauerGesamtheit$zeitdauer)
+
+print(lambda)
+
+```
+
+### c)
+
+```{r}
+# Zeichnung der Wahrscheinlichkeitsdichtefunktion (PDF) ins Histogramm
+hist(zeitdauerGesamtheit$zeitdauer, prob=TRUE, col="lightblue", border="black", main="Histogramm mit PDF")
+
+# Erstellung der Werte für die PDF
+x <- seq(0, max(zeitdauerGesamtheit$zeitdauer), length=1000)
+pdf_values <- dexp(x, rate=lambda)
+
+# Platzieren der PDF Linie über das Histogramm
+lines(x, pdf_scaled, col="darkblue", lwd=2)
+
+```
+
+### c)
+
+Erstellung des Q-Q Plots
+
+```{r}
+qqnorm(zeitdauerGesamtheit$zeitdauer)
+qqline(zeitdauerGesamtheit$zeitdauer)
+```
+
+Wie erwartet erhalten wir bei Werten mit einer Exponentialverteilung, welches ein postiv verzertes Histogramm aufzeigen, ein Q-Q Plot mit anfänglich linearen Anordnung, was darauf hindeutet, dass die Daten mit der angenommenen Exponentialverteilung konsistent sind. Jedoch gibt es ab einem bestimmten Punkt eine Abweichung von der geraden Linie, was darauf hinweisen könnte, dass die Annahme für höhere Quantile nicht mehr perfekt zutrifft.
+
+## Aufgabe 3
+
+### a)
+
+Ziehen der Stichproben und setzen der Seeds für die Reproduzierbarkeit. Mit der Funktion *lapply* und *replicate* werden über die Stichproben iteriert und die Anzahl angegebener Sample Grössen wiederholt.
+
+```{r}
+set.seed(123)
+sample_sizes <- c(10, 50, 100, 500, 1000)
+samples <- lapply(sample_sizes, function(n) replicate(100, sample(zeitdauerGesamtheit$zeitdauer, n)))
+```
+
+### b) 
+
+Berechnen des arithmetischen Mittelwert für jede Stichprobe, dies wieder mit der Hilfe der Funktion *lapply*.
+
+```{r}
+means <- lapply(samples, function(s) apply(s, 2, mean))
+```
+
+
+### c) 
+
+Plotten der Histogramme und der geschätzten Normalverteilungen.
+
+```{r}
+par(mfrow=c(2, 3), mar=c(4,4,2,1))  # 2x3 Matrix für die Anordnung der Plots
+
+for (i in seq_along(sample_sizes)) {
+  # Histogramm
+  hist(means[[i]], col="lightblue", main=paste("Histogram (n =", sample_sizes[i], ")"), xlab="Mittelwert", prob=TRUE)
+  
+  # Geschätzte Normalverteilung
+  mu <- mean(means[[i]]) # Berechnung des Durchschnitts der Stichprobenmittelwerte
+  sigma <- sd(means[[i]]) # Berechnung der Standardabweichung der Stichprobenmittelwerte
+  x_vals <- seq(mu - 3*sigma, mu + 3*sigma, length=100) # rzeugung einer Sequenz von x-Werten im Bereich von drei Standardabweichungen unter dem Durchschnitt bis drei Standardabweichungen über dem Durchschnitt
+  y_vals <- dnorm(x_vals, mean=mu, sd=sigma) # Berechnung der Dichtefunktion der Normalverteilung für die generierten x-Werte
+  lines(x_vals, y_vals, col="darkblue", lwd=2)
+}
+```
+
+QQ-Plots der Mittelwerte vs. die Normalverteilung
+
+```{r}
+par(mfrow=c(2, 3), mar=c(4,4,2,1))  # 2x3 Matrix für die Anordnung der Plots
+
+for (i in seq_along(sample_sizes)) {
+  qqnorm(means[[i]], main=paste("QQ-Plot (n =", sample_sizes[i], ")"))
+  qqline(means[[i]])
+}
+```
+
+### d)
+
+Allgemein ist zu beobachten, dass die Verteilung der Mittelwerte sich mit wachsender Stichprobengrösse der Normalverteilung annähert, wie es durch den zentralen Grenzwertsatz vorhergesagt wird. Diese Annäherung ist konsistent mit der Theorie, wonach die Mittelwerte von unabhängigen, identisch verteilten Zufallsvariablen, selbst wenn die ursprüngliche Verteilung nicht normal ist, bei ausreichend grossen Stichprobengrössen normalverteilt werden.
+
+Interessanterweise liegt bei 500 Stichproben eine bessere Erfüllung der Normalverteilungsannahme vor, was zu einer schnelleren Konvergenz der Mittelwerte führt. Im Gegensatz dazu konnte bei 1000 Stichproben vorübergehende Ausreisser oder Schwankungen beobachtet werdewn, die die Annäherung beeinflussen und zu scheinbaren Abweichungen führen. Diese Beobachtung weist darauf hin, dass bei begrenzter Stichprobengrösse Schwankungen auftreten können, die die Genauigkeit der Annäherung beeinflussen, und verdeutlicht die Nuancen der Annäherung an die Normalverteilung.
+
+
+
+
